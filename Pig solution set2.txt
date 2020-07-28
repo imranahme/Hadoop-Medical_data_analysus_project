@@ -1,0 +1,63 @@
+--1
+
+data1 = load '/home/cloudera/hospitalization_data_initial.json' using JsonLoader('date_admission:chararray, admitted_duration:chararray, 
+date_clinical_visit:chararray, blood_transfusion_required:chararray, diagnosis_code:chararray, diagnosis_description_short:chararray, 
+procedure_code:chararray, procedure_description_short:chararray, patient_id:chararray, state:chararray');
+data3 = load '/home/cloudera/customer_profile_data.json' using JsonLoader('age:chararray, gender:chararray, race:chararray, 
+marital_status:chararray, state:chararray, employer:chararray, blood_group:chararray, patient_id:chararray');
+join_data = JOIN  data1 BY (patient_id) , data3 BY (patient_id);
+a = FOREACH join_data generate data3::gender, data1::admitted_duration, data1::diagnosis_code, data1::diagnosis_description_short;
+aa = FILTER a BY (data1::admitted_duration MATCHES '2.5 month');
+b = GROUP aa by (data3::gender, data1::admitted_duration, data1::diagnosis_code, data1::diagnosis_description_short);
+c = FOREACH b GENERATE FLATTEN(group) as (data3::gender, data1::admitted_duration, data1::diagnosis_code, data1::diagnosis_description_short), COUNT($1) as CNT;
+--d = FILTER c BY (CNT >= 1);
+ordered_data = ORDER c BY (data3::gender);
+STORE ordered_data INTO ' /home/cloudera/pigoutputfiles8 ' USING PigStorage ('\t','\t');
+
+
+--2
+
+data2 = load '/home/cloudera/medication_and_insurance.json' using JsonLoader('drug_company:chararray, drug_name:chararray, 
+drug_name_generic:chararray, primary_insurance_provider:chararray, amount_paid_peryear:chararray, patient_id1:chararray');
+data3 = load '/home/cloudera/customer_profile_data.json' using JsonLoader('age:chararray, gender:chararray, race:chararray, 
+marital_status:chararray, state:chararray, employer:chararray, blood_group:chararray, patient_id:chararray');
+join_data = JOIN  data2 BY (patient_id1) , data3 BY (patient_id);
+a = FOREACH join_data generate data3::state, data2::drug_company, data2::drug_name, data2::drug_name_generic;
+b = GROUP a by (data3::state, data2::drug_company, data2::drug_name, data2::drug_name_generic);
+c = FOREACH b GENERATE FLATTEN(group) as (data3::state, data2::drug_company, data2::drug_name, data2::drug_name_generic), COUNT($1) as CNT;
+--d = FILTER c BY (CNT >= 1);
+ordered_data = ORDER c BY (data3::state);
+STORE ordered_data INTO ' /home/cloudera/pigoutputfiles9 ' USING PigStorage ('\t','\t');
+
+
+--3
+
+data3 = load '/home/cloudera/customer_profile_data.json' using JsonLoader('age:int, gender:chararray, race:chararray, 
+marital_status:chararray, state:chararray, employer:chararray, blood_group:chararray, patient_id:chararray');
+a = FOREACH data3 generate blood_group, (CASE WHEN age<30 THEN '20s' WHEN age<39 and age>30  THEN '30s' WHEN age<49 and age>40  
+THEN '40s' WHEN age<59 and age>50  THEN '50s'  ELSE 'senior_citizens' END) AS age_group, gender;
+b = GROUP a by (blood_group, age_group, gender);
+c = FOREACH b GENERATE FLATTEN(group) as (blood_group, age_group, gender), COUNT($1) as CNT;
+--d = FILTER c BY (CNT >= 1);
+ordered_data = ORDER c BY (blood_group);
+STORE ordered_data INTO ' /home/cloudera/pigoutputfiles13 ' USING PigStorage ('\t','\t');
+
+
+--4
+
+data1 = load '/home/cloudera/hospitalization_data_initial.json' using JsonLoader('date_admission:chararray, admitted_duration:chararray, 
+date_clinical_visit:chararray, blood_transfusion_required:chararray, diagnosis_code:chararray, diagnosis_description_short:chararray, 
+procedure_code:chararray, procedure_description_short:chararray, patient_id:chararray, state:chararray');
+data2 = load '/home/cloudera/medication_and_insurance.json' using JsonLoader('drug_company:chararray, drug_name:chararray, 
+drug_name_generic:chararray, primary_insurance_provider:chararray, amount_paid_peryear:chararray, patient_id1:chararray');
+join_data = JOIN  data1 BY (patient_id) , data2 BY (patient_id1);
+a = FOREACH join_data generate SUBSTRING(data1::date_clinical_visit, 0, 4) as ee, data2::drug_name_generic, data2::drug_company;
+b = GROUP a by (ee, data2::drug_name_generic, data2::drug_company);
+c = FOREACH b GENERATE FLATTEN(group) as (ee, data2::drug_name_generic, data2::drug_company), COUNT($1) as CNT;
+d = FILTER c BY (CNT >= 1);
+ordered_data = ORDER d BY (ee);
+STORE d INTO ' /home/cloudera/pigoutputfiles6 ' USING PigStorage ('\t','\t');
+
+
+
+

@@ -1,0 +1,375 @@
+--4
+Disease effecting the most for each race?
+--4.1
+Disease effecting the most for each age group?
+
+
+--7
+Procedure code used against each age group?
+--7.1
+Procedure code used against each state?
+
+
+--8
+Percentage of Insurance company used by patients for all years?
+--8.1
+Patients across Insurance company per each state?
+
+
+--9
+Patients having (moderate, worst) side effects across each drug?
+--9.1
+Diseases effected the most patients having (moderate, worst) side effects?
+
+
+--12  12.1  12.2  12.3  12.4
+To review conditions of Onsets, Past immunization and surgical conditions for patients having severity pain ( low, medium, high )?
+
+--13
+To review conditions of Review of systems for patients of different age groups?
+
+
+select get_json_object(jsondata,'$tblcustomerprofile1.age') from medicalanalytics.tblcustomerprofile1;
+select get_json_object(jsondata,'$.date_admission') from medicalanalytics.tblhospitalclinicdata1;
+select get_json_object(jsondata,'$.drug_company') from medicalanalytics.tblinsurancemedicine1;
+select get_json_object(jsondata,'$.onset_status') from medicalanalytics.tblmedicalhistory1;
+
+
+use medicalanalytics;
+
+
+--4
+
+insert overwrite local directory '/home/cloudera/hiveoutputfiles/hive4'
+row format delimited
+fields terminated by '\t'
+select count(*) as cnt , tblcustomerprofile.race ,  tblhospitalclinicdata.diagnosis_code , tblhospitalclinicdata.diagnosis_description_short
+from tblcustomerprofile 
+join tblhospitalclinicdata
+on (tblcustomerprofile.patient_id = tblhospitalclinicdata.patient_id)
+group by tblcustomerprofile.race ,  tblhospitalclinicdata.diagnosis_code , tblhospitalclinicdata.diagnosis_description_short
+order by cnt desc;
+
+
+--4.1
+
+insert overwrite local directory '/home/cloudera/hiveoutputfiles/hive4_1'
+row format delimited
+fields terminated by '\t'
+select count(*) as cnt ,  tblhospitalclinicdata.diagnosis_code , tblhospitalclinicdata.diagnosis_description_short ,
+case 
+when (tblcustomerprofile.age < '30') then '20s'
+when (tblcustomerprofile.age between ('30') and ('39')) then '30s'
+when (tblcustomerprofile.age between ('40') and ('49')) then '40s'
+when (tblcustomerprofile.age between ('50') and ('59')) then '50s'
+when (tblcustomerprofile.age > '60') then 'senior_citizens'
+else null 
+end as age_group
+from tblcustomerprofile 
+join tblhospitalclinicdata
+on (tblcustomerprofile.patient_id = tblhospitalclinicdata.patient_id)
+group by tblhospitalclinicdata.diagnosis_code , tblhospitalclinicdata.diagnosis_description_short , tblcustomerprofile.age
+order by cnt desc;
+
+
+
+--7
+
+insert overwrite local directory '/home/cloudera/hiveoutputfiles/hive7'
+row format delimited
+fields terminated by '\t'
+select count(*) as cnt ,  tblhospitalclinicdata.procedure_code ,
+case 
+when (tblcustomerprofile.age < '30') then '20s'
+when (tblcustomerprofile.age between ('30') and ('39')) then '30s'
+when (tblcustomerprofile.age between ('40') and ('49')) then '40s'
+when (tblcustomerprofile.age between ('50') and ('59')) then '50s'
+when (tblcustomerprofile.age > '60') then 'senior_citizens'
+else null 
+end as age_group
+from tblcustomerprofile 
+join tblhospitalclinicdata
+on (tblcustomerprofile.patient_id = tblhospitalclinicdata.patient_id)
+group by tblhospitalclinicdata.procedure_code ,  tblcustomerprofile.age
+order by cnt desc;
+
+Procedure code used against each state?
+
+--7.1
+
+insert overwrite local directory '/home/cloudera/hiveoutputfiles/hive7_1'
+row format delimited
+fields terminated by '\t'
+select count(*) as cnt ,  tblhospitalclinicdata.procedure_code , 
+tblcustomerprofile.state
+from tblcustomerprofile 
+join tblhospitalclinicdata
+on (tblcustomerprofile.patient_id = tblhospitalclinicdata.patient_id)
+group by tblhospitalclinicdata.procedure_code ,  tblcustomerprofile.state
+order by cnt desc;
+
+
+--8
+-For selected year
+
+insert overwrite local directory '/home/cloudera/hiveoutputfiles/hive8'
+row format delimited
+fields terminated by '\t'
+select concat((((t1.cnt)*100)/t2.AA),'%') as vl , 
+concat(t1.cnt,'  2015') as sm , t1.ins as ins2 
+from
+(select count(*) as cnt ,  
+tblinsurancemedicine.primary_insurance_provider as ins
+from tblinsurancemedicine
+join tblhospitalclinicdata
+on (tblinsurancemedicine.patient_id = tblhospitalclinicdata.patient_id)
+where substr(tblhospitalclinicdata.date_clinical_visit,1,4) = '2015'
+group by  tblinsurancemedicine.primary_insurance_provider) t1 , 
+(select count(primary_insurance_provider) as AA 
+from tblinsurancemedicine
+join tblhospitalclinicdata
+on (tblinsurancemedicine.patient_id = tblhospitalclinicdata.patient_id)
+where substr(tblhospitalclinicdata.date_clinical_visit,1,4) = '2015') t2;
+
+
+
+--For all years
+
+insert overwrite local directory '/home/cloudera/hiveoutputfiles/hive8all'
+row format delimited
+fields terminated by '\t'
+select concat((((t1.cnt)*100)/t2.AA),'%') as vl , 
+t1.cnt as sm , t1.ye as yer, t1.ins as ins2 
+from
+(select count(*) as cnt ,  
+tblinsurancemedicine.primary_insurance_provider as ins ,
+substr(tblhospitalclinicdata.date_clinical_visit,1,4) as ye
+from tblinsurancemedicine
+join tblhospitalclinicdata
+on (tblinsurancemedicine.patient_id = tblhospitalclinicdata.patient_id)
+group by  tblinsurancemedicine.primary_insurance_provider ,
+substr(tblhospitalclinicdata.date_clinical_visit,1,4)) t1 , 
+(select count(primary_insurance_provider) as AA 
+from tblinsurancemedicine) t2
+order by yer;
+
+
+--8.1
+
+insert overwrite local directory '/home/cloudera/hiveoutputfiles/hive8_1'
+row format delimited
+fields terminated by '\t'
+select count(*) as cnt ,  
+tblinsurancemedicine.primary_insurance_provider as ins ,
+tblcustomerprofile.state as st
+from tblinsurancemedicine
+join tblcustomerprofile
+on (tblinsurancemedicine.patient_id = tblcustomerprofile.patient_id)
+group by  tblinsurancemedicine.primary_insurance_provider ,
+tblcustomerprofile.state
+order by st;
+
+
+--9
+
+insert overwrite local directory '/home/cloudera/hiveoutputfiles/hive9'
+row format delimited
+fields terminated by '\t'
+select count(*) as cnt , tblmedicalhistory.side_effects , 
+tblinsurancemedicine.drug_name,
+tblinsurancemedicine.drug_name_generic
+from
+tblmedicalhistory
+join tblinsurancemedicine
+on (tblmedicalhistory.patient_id = tblinsurancemedicine.patient_id)
+where tblmedicalhistory.side_effects in ('moderate','worst')
+group by tblmedicalhistory.side_effects , 
+tblinsurancemedicine.drug_name,
+tblinsurancemedicine.drug_name_generic
+order by cnt desc;
+
+
+--9.1
+
+insert overwrite local directory '/home/cloudera/hiveoutputfiles/hive9_1'
+row format delimited
+fields terminated by '\t'
+select count(*) as cnt , tblmedicalhistory.side_effects , 
+tblhospitalclinicdata.diagnosis_code , 
+tblhospitalclinicdata.diagnosis_description_short
+from
+tblmedicalhistory
+join tblhospitalclinicdata
+on (tblmedicalhistory.patient_id = tblhospitalclinicdata.patient_id)
+where tblmedicalhistory.side_effects in ('moderate','worst')
+group by tblmedicalhistory.side_effects , 
+tblhospitalclinicdata.diagnosis_code , 
+tblhospitalclinicdata.diagnosis_description_short
+order by cnt desc;
+
+
+
+-- 12
+
+insert overwrite local directory '/home/cloudera/hiveoutputfiles/hive12'
+row format delimited
+fields terminated by '\t'
+select count(*) as cnt , onset_status , onset_occurence , 
+onset_duration , immunization_history , past_surgical_history
+from
+tblmedicalhistory
+where severity in ('0','1','2')
+group by onset_status , onset_occurence , onset_duration , 
+immunization_history , past_surgical_history
+order by cnt desc;
+
+
+--12.1
+
+insert overwrite local directory '/home/cloudera/hiveoutputfiles/hive12_1'
+row format delimited
+fields terminated by '\t'
+select count(*) as cnt , onset_status , onset_occurence , 
+onset_duration , immunization_history , past_surgical_history
+from
+tblmedicalhistory
+where severity in ('3','4','5','6')
+group by onset_status , onset_occurence , onset_duration , 
+immunization_history , past_surgical_history
+order by cnt desc;
+
+
+--12.2
+
+insert overwrite local directory '/home/cloudera/hiveoutputfiles/hive12_2'
+row format delimited
+fields terminated by '\t'
+select count(*) as cnt , onset_status , onset_occurence , 
+onset_duration , immunization_history , past_surgical_history
+from
+tblmedicalhistory
+where severity in ('7','8','9','10')
+group by onset_status , onset_occurence , onset_duration , 
+immunization_history , past_surgical_history
+order by cnt desc;
+
+
+--12.3
+
+insert overwrite local directory '/home/cloudera/hiveoutputfiles/hive12_3'
+row format delimited
+fields terminated by '\t'
+select count(*) as cnt , onset_status , onset_occurence , 
+onset_duration , immunization_history , past_surgical_history
+from
+tblmedicalhistory
+where side_effects = 'moderate'
+group by onset_status , onset_occurence , onset_duration , 
+immunization_history , past_surgical_history
+order by cnt desc;
+
+
+--12.4
+
+insert overwrite local directory '/home/cloudera/hiveoutputfiles/hive12_4'
+row format delimited
+fields terminated by '\t'
+select count(*) as cnt , onset_status , onset_occurence , 
+onset_duration , immunization_history , past_surgical_history
+from
+tblmedicalhistory
+where side_effects = 'worst'
+group by onset_status , onset_occurence , onset_duration , 
+immunization_history , past_surgical_history
+order by cnt desc;
+
+
+
+--13
+--filtered
+
+insert overwrite local directory '/home/cloudera/hiveoutputfiles/hive13'
+row format delimited
+fields terminated by '\t'
+select count(*) as cnt , 
+case 
+when (tblcustomerprofile.age < '30') then '20s'
+when (tblcustomerprofile.age between ('30') and ('39')) then '30s'
+when (tblcustomerprofile.age between ('40') and ('49')) then '40s'
+when (tblcustomerprofile.age between ('50') and ('59')) then '50s'
+when (tblcustomerprofile.age > '60') then 'senior_citizens'
+else null 
+end as age_group,
+tblmedicalhistory.medication_amount_grams, 
+tblmedicalhistory.medication_rate,
+tblmedicalhistory.ros_fever,
+tblmedicalhistory.ros_chest_pain_or_pressure,
+tblmedicalhistory.ros_shortness_of_breath,
+tblmedicalhistory.ros_cough,
+tblmedicalhistory.ros_heartburn
+from
+tblmedicalhistory
+join tblcustomerprofile
+on (tblmedicalhistory.patient_id = tblcustomerprofile.patient_id)
+where tblmedicalhistory.severity in ('7','8','9','10')
+group by 
+tblcustomerprofile.age,
+tblmedicalhistory.medication_amount_grams, 
+tblmedicalhistory.medication_rate,
+tblmedicalhistory.ros_fever,
+tblmedicalhistory.ros_chest_pain_or_pressure,
+tblmedicalhistory.ros_shortness_of_breath,
+tblmedicalhistory.ros_cough,
+tblmedicalhistory.ros_heartburn
+order by cnt desc;
+
+-- Not inmethodology
+insert overwrite local directory '/home/cloudera/hiveoutputfiles/hive 13.txt'
+row format delimited
+fields terminated by '\t'
+select count(*) as cnt , 
+case 
+when (tblcustomerprofile.age < '30') then '20s'
+when (tblcustomerprofile.age between ('30') and ('39')) then '30s'
+when (tblcustomerprofile.age between ('40') and ('49')) then '40s'
+when (tblcustomerprofile.age between ('50') and ('59')) then '50s'
+when (tblcustomerprofile.age > '60') then 'senior_citizens'
+else null 
+end as age_group,
+tblmedicalhistory.ros_recent_weight_loss,
+tblmedicalhistory.ros_fever,
+tblmedicalhistory.ros_visual_changes,
+tblmedicalhistory.ros_hearing_loss,
+tblmedicalhistory.ros_chest_pain_or_pressure,
+tblmedicalhistory.ros_shortness_of_breath,
+tblmedicalhistory.ros_blood_clots,
+tblmedicalhistory.ros_cough,
+tblmedicalhistory.ros_abdominal_pain,
+tblmedicalhistory.ros_heartburn,
+tblmedicalhistory.ros_frequent_urination,
+tblmedicalhistory.ros_nervousness_anxiety,
+tblmedicalhistory.ros_depression,
+tblmedicalhistory.ros_bleeding,
+tblmedicalhistory.ros_joint_pain
+from
+tblmedicalhistory
+join tblcustomerprofile
+on (tblmedicalhistory.patient_id = tblcustomerprofile.patient_id)
+group by 
+tblcustomerprofile.age,
+tblmedicalhistory.ros_recent_weight_loss,
+tblmedicalhistory.ros_fever,
+tblmedicalhistory.ros_visual_changes,
+tblmedicalhistory.ros_hearing_loss,
+tblmedicalhistory.ros_chest_pain_or_pressure,
+tblmedicalhistory.ros_shortness_of_breath,
+tblmedicalhistory.ros_blood_clots,
+tblmedicalhistory.ros_cough,
+tblmedicalhistory.ros_abdominal_pain,
+tblmedicalhistory.ros_heartburn,
+tblmedicalhistory.ros_frequent_urination,
+tblmedicalhistory.ros_nervousness_anxiety,
+tblmedicalhistory.ros_depression,
+tblmedicalhistory.ros_bleeding,
+tblmedicalhistory.ros_joint_pain
+order by cnt desc;
